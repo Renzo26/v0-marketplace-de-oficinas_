@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, ArrowRight, Check, Upload, MapPin, Phone, Star } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Upload, MapPin, Phone, Star, Eye, EyeOff } from "lucide-react"
 import Link from "next/link"
+import { validateCNPJ, formatCNPJ } from "@/lib/validators"
+import { apiService, type CadastroOficinaData, type HorarioFuncionamento } from "@/lib/api"
 
 const servicosDisponiveis = [
   {
@@ -35,28 +37,81 @@ const servicosDisponiveis = [
   },
 ]
 
+const diasSemana = [
+  { key: "segunda", label: "Segunda-feira" },
+  { key: "terca", label: "Terça-feira" },
+  { key: "quarta", label: "Quarta-feira" },
+  { key: "quinta", label: "Quinta-feira" },
+  { key: "sexta", label: "Sexta-feira" },
+  { key: "sabado", label: "Sábado" },
+  { key: "domingo", label: "Domingo" },
+]
+
 export default function CadastroOficina() {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
-    nome: "",
+    razaoSocial: "",
     cnpj: "",
     telefone: "",
+    email: "",
     endereco: "",
     numero: "",
     bairro: "",
     cidade: "",
     uf: "",
     cep: "",
-    horario: "",
+    login: "",
+    senha: "",
+    confirmarSenha: "",
+    horarioFuncionamento: {
+      segunda: { inicio: "08:00", fim: "18:00", ativo: true },
+      terca: { inicio: "08:00", fim: "18:00", ativo: true },
+      quarta: { inicio: "08:00", fim: "18:00", ativo: true },
+      quinta: { inicio: "08:00", fim: "18:00", ativo: true },
+      sexta: { inicio: "08:00", fim: "18:00", ativo: true },
+      sabado: { inicio: "08:00", fim: "12:00", ativo: false },
+      domingo: { inicio: "08:00", fim: "12:00", ativo: false },
+    } as HorarioFuncionamento,
     servicosSelecionados: [] as string[],
     outrosServicos: "",
     aceitaTermos: false,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  const validateStep = (step: number): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    if (step === 1) {
+      if (!formData.razaoSocial.trim()) newErrors.razaoSocial = "Razão Social é obrigatória"
+      if (!formData.cnpj.trim()) {
+        newErrors.cnpj = "CNPJ é obrigatório"
+      } else if (!validateCNPJ(formData.cnpj)) {
+        newErrors.cnpj = "CNPJ inválido"
+      }
+      if (!formData.telefone.trim()) newErrors.telefone = "Telefone é obrigatório"
+      if (!formData.email.trim()) newErrors.email = "Email é obrigatório"
+      if (!formData.endereco.trim()) newErrors.endereco = "Endereço é obrigatório"
+      if (!formData.login.trim()) newErrors.login = "Login é obrigatório"
+      if (!formData.senha.trim()) newErrors.senha = "Senha é obrigatória"
+      if (formData.senha !== formData.confirmarSenha) newErrors.confirmarSenha = "Senhas não coincidem"
+    }
+
+    if (step === 2) {
+      if (formData.servicosSelecionados.length === 0) {
+        newErrors.servicos = "Selecione pelo menos um serviço"
+      }
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleNext = () => {
-    if (currentStep < 3) {
+    if (validateStep(currentStep) && currentStep < 3) {
       setCurrentStep(currentStep + 1)
     }
   }
@@ -76,12 +131,49 @@ export default function CadastroOficina() {
     }))
   }
 
+  const handleHorarioChange = (
+    dia: keyof HorarioFuncionamento,
+    field: "inicio" | "fim" | "ativo",
+    value: string | boolean,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      horarioFuncionamento: {
+        ...prev.horarioFuncionamento,
+        [dia]: {
+          ...prev.horarioFuncionamento[dia],
+          [field]: value,
+        },
+      },
+    }))
+  }
+
   const handleSubmit = async () => {
+    if (!validateStep(currentStep) || !formData.aceitaTermos) return
+
     setIsSubmitting(true)
-    // Simular envio
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsSubmitting(false)
-    setShowSuccess(true)
+    try {
+      const cadastroData: CadastroOficinaData = {
+        razaoSocial: formData.razaoSocial,
+        cnpj: formData.cnpj,
+        telefone: formData.telefone,
+        email: formData.email,
+        endereco: `${formData.endereco}, ${formData.numero} - ${formData.bairro}, ${formData.cidade}/${formData.uf}`,
+        servicos: formData.servicosSelecionados,
+        horarioFuncionamento: formData.horarioFuncionamento,
+        login: formData.login,
+        senha: formData.senha,
+      }
+
+      // In production, this will call the Java backend
+      await apiService.cadastrarOficina(cadastroData)
+      setShowSuccess(true)
+    } catch (error) {
+      console.error("Erro ao cadastrar oficina:", error)
+      setErrors({ submit: "Erro ao cadastrar oficina. Tente novamente." })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (showSuccess) {
@@ -162,53 +254,207 @@ export default function CadastroOficina() {
                     className="block text-sm font-medium mb-2"
                     style={{ color: "var(--marketplace-text-primary)" }}
                   >
-                    Nome da Oficina *
+                    Razão Social *
                   </label>
                   <Input
-                    value={formData.nome}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, nome: e.target.value }))}
-                    placeholder="Ex: Oficina São José"
+                    value={formData.razaoSocial}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, razaoSocial: e.target.value }))}
+                    placeholder="Ex: Oficina São José Ltda"
                     className="border-0"
                     style={{
                       backgroundColor: "var(--marketplace-bg)",
                       color: "var(--marketplace-text-primary)",
+                      borderColor: errors.razaoSocial ? "var(--marketplace-error)" : "transparent",
                     }}
                   />
+                  {errors.razaoSocial && (
+                    <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                      {errors.razaoSocial}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
                     className="block text-sm font-medium mb-2"
                     style={{ color: "var(--marketplace-text-primary)" }}
                   >
-                    CNPJ/CPF *
+                    CNPJ *
                   </label>
                   <Input
                     value={formData.cnpj}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, cnpj: e.target.value }))}
+                    onChange={(e) => {
+                      const formatted = formatCNPJ(e.target.value)
+                      setFormData((prev) => ({ ...prev, cnpj: formatted }))
+                    }}
                     placeholder="00.000.000/0000-00"
+                    maxLength={18}
                     className="border-0"
                     style={{
                       backgroundColor: "var(--marketplace-bg)",
                       color: "var(--marketplace-text-primary)",
+                      borderColor: errors.cnpj ? "var(--marketplace-error)" : "transparent",
                     }}
                   />
+                  {errors.cnpj && (
+                    <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                      {errors.cnpj}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
-                  Telefone/WhatsApp *
-                </label>
-                <Input
-                  value={formData.telefone}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, telefone: e.target.value }))}
-                  placeholder="(11) 99999-9999"
-                  className="border-0"
-                  style={{
-                    backgroundColor: "var(--marketplace-bg)",
-                    color: "var(--marketplace-text-primary)",
-                  }}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-2"
+                    style={{ color: "var(--marketplace-text-primary)" }}
+                  >
+                    Telefone/WhatsApp *
+                  </label>
+                  <Input
+                    value={formData.telefone}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, telefone: e.target.value }))}
+                    placeholder="(11) 99999-9999"
+                    className="border-0"
+                    style={{
+                      backgroundColor: "var(--marketplace-bg)",
+                      color: "var(--marketplace-text-primary)",
+                      borderColor: errors.telefone ? "var(--marketplace-error)" : "transparent",
+                    }}
+                  />
+                  {errors.telefone && (
+                    <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                      {errors.telefone}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-2"
+                    style={{ color: "var(--marketplace-text-primary)" }}
+                  >
+                    Email *
+                  </label>
+                  <Input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="contato@oficina.com"
+                    className="border-0"
+                    style={{
+                      backgroundColor: "var(--marketplace-bg)",
+                      color: "var(--marketplace-text-primary)",
+                      borderColor: errors.email ? "var(--marketplace-error)" : "transparent",
+                    }}
+                  />
+                  {errors.email && (
+                    <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                      {errors.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg" style={{ backgroundColor: "var(--marketplace-bg)" }}>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: "var(--marketplace-text-primary)" }}>
+                  Credenciais de Acesso
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className="block text-sm font-medium mb-2"
+                      style={{ color: "var(--marketplace-text-primary)" }}
+                    >
+                      Login/ CNPJ *
+                    </label>
+                    <Input
+                      value={formData.login}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
+                      placeholder="Seu login de acesso"
+                      className="border-0"
+                      style={{
+                        backgroundColor: "var(--marketplace-card)",
+                        color: "var(--marketplace-text-primary)",
+                        borderColor: errors.login ? "var(--marketplace-error)" : "transparent",
+                      }}
+                    />
+                    {errors.login && (
+                      <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                        {errors.login}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label
+                      className="block text-sm font-medium mb-2"
+                      style={{ color: "var(--marketplace-text-primary)" }}
+                    >
+                      Senha *
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={formData.senha}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, senha: e.target.value }))}
+                        placeholder="Sua senha"
+                        className="border-0 pr-10"
+                        style={{
+                          backgroundColor: "var(--marketplace-card)",
+                          color: "var(--marketplace-text-primary)",
+                          borderColor: errors.senha ? "var(--marketplace-error)" : "transparent",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                        style={{ color: "var(--marketplace-text-secondary)" }}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {errors.senha && (
+                      <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                        {errors.senha}
+                      </p>
+                    )}
+                  </div>
+                  <div className="md:col-span-2">
+                    <label
+                      className="block text-sm font-medium mb-2"
+                      style={{ color: "var(--marketplace-text-primary)" }}
+                    >
+                      Confirmar Senha *
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={formData.confirmarSenha}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, confirmarSenha: e.target.value }))}
+                        placeholder="Confirme sua senha"
+                        className="border-0 pr-10"
+                        style={{
+                          backgroundColor: "var(--marketplace-card)",
+                          color: "var(--marketplace-text-primary)",
+                          borderColor: errors.confirmarSenha ? "var(--marketplace-error)" : "transparent",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                        style={{ color: "var(--marketplace-text-secondary)" }}
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {errors.confirmarSenha && (
+                      <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                        {errors.confirmarSenha}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -227,8 +473,14 @@ export default function CadastroOficina() {
                     style={{
                       backgroundColor: "var(--marketplace-bg)",
                       color: "var(--marketplace-text-primary)",
+                      borderColor: errors.endereco ? "var(--marketplace-error)" : "transparent",
                     }}
                   />
+                  {errors.endereco && (
+                    <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
+                      {errors.endereco}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -308,24 +560,59 @@ export default function CadastroOficina() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
+                <label className="block text-sm font-medium mb-4" style={{ color: "var(--marketplace-text-primary)" }}>
                   Horário de Funcionamento *
                 </label>
-                <select
-                  value={formData.horario}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, horario: e.target.value }))}
-                  className="w-full p-3 rounded-lg border-0"
-                  style={{
-                    backgroundColor: "var(--marketplace-bg)",
-                    color: "var(--marketplace-text-primary)",
-                  }}
-                >
-                  <option value="">Selecione o horário</option>
-                  <option value="8h-18h">8h às 18h</option>
-                  <option value="7h-17h">7h às 17h</option>
-                  <option value="8h-17h">8h às 17h</option>
-                  <option value="24h">24 horas</option>
-                </select>
+                <div className="space-y-3">
+                  {diasSemana.map((dia) => (
+                    <div
+                      key={dia.key}
+                      className="flex items-center gap-4 p-3 rounded-lg"
+                      style={{ backgroundColor: "var(--marketplace-bg)" }}
+                    >
+                      <div className="flex items-center space-x-2 min-w-[120px]">
+                        <Checkbox
+                          checked={formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].ativo}
+                          onCheckedChange={(checked) =>
+                            handleHorarioChange(dia.key as keyof HorarioFuncionamento, "ativo", !!checked)
+                          }
+                        />
+                        <label className="text-sm font-medium" style={{ color: "var(--marketplace-text-primary)" }}>
+                          {dia.label}
+                        </label>
+                      </div>
+                      {formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].ativo && (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].inicio}
+                            onChange={(e) =>
+                              handleHorarioChange(dia.key as keyof HorarioFuncionamento, "inicio", e.target.value)
+                            }
+                            className="w-24 border-0"
+                            style={{
+                              backgroundColor: "var(--marketplace-card)",
+                              color: "var(--marketplace-text-primary)",
+                            }}
+                          />
+                          <span style={{ color: "var(--marketplace-text-secondary)" }}>às</span>
+                          <Input
+                            type="time"
+                            value={formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].fim}
+                            onChange={(e) =>
+                              handleHorarioChange(dia.key as keyof HorarioFuncionamento, "fim", e.target.value)
+                            }
+                            className="w-24 border-0"
+                            style={{
+                              backgroundColor: "var(--marketplace-card)",
+                              color: "var(--marketplace-text-primary)",
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>
@@ -386,6 +673,12 @@ export default function CadastroOficina() {
                 </div>
               ))}
 
+              {errors.servicos && (
+                <p className="text-sm" style={{ color: "var(--marketplace-error)" }}>
+                  {errors.servicos}
+                </p>
+              )}
+
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
                   Outros Serviços
@@ -429,7 +722,7 @@ export default function CadastroOficina() {
                   }}
                 >
                   <h3 className="text-xl font-semibold mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
-                    {formData.nome || "Nome da Oficina"}
+                    {formData.razaoSocial || "Razão Social da Oficina"}
                   </h3>
                   <p className="mb-4" style={{ color: "var(--marketplace-text-secondary)" }}>
                     {formData.servicosSelecionados.slice(0, 2).join(", ") || "Serviços selecionados"}
@@ -485,6 +778,12 @@ export default function CadastroOficina() {
                 </div>
               </CardContent>
             </Card>
+
+            {errors.submit && (
+              <div className="p-4 rounded-lg" style={{ backgroundColor: "var(--marketplace-error)", color: "white" }}>
+                {errors.submit}
+              </div>
+            )}
           </div>
         )}
 

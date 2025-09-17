@@ -41,8 +41,12 @@
   --marketplace-card: #1c1c1e;
   --marketplace-text-primary: #f5f5f5;
   --marketplace-text-secondary: #a1a1aa;
+  /* Reverted primary color back to blue */
   --marketplace-primary: #3b82f6;
-  --marketplace-primary-hover: #60a5fa;
+  --marketplace-primary-hover: #2563eb;
+  /* Added green color specifically for contact buttons */
+  --marketplace-contact: #22c55e;
+  --marketplace-contact-hover: #16a34a;
   --marketplace-stars: #facc15;
   --marketplace-success: #22c55e;
   --marketplace-error: #ef4444;

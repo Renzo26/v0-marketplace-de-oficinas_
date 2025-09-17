@@ -125,11 +125,11 @@ export default function LoginPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
-                  Email
+                  {selectedType === "oficina" ? "CNPJ" : "Email"}
                 </label>
                 <input
-                  type="email"
-                  placeholder="seu@email.com"
+                  type={selectedType === "oficina" ? "text" : "email"}
+                  placeholder={selectedType === "oficina" ? "00.000.000/0000-00" : "seu@email.com"}
                   className="w-full p-3 rounded-lg border-0"
                   style={{
                     backgroundColor: "var(--marketplace-bg)",

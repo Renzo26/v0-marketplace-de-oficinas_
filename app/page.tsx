@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { MapPin, Star, Phone, Search, Filter, User, LogIn } from "lucide-react"
+import { MapPin, Star, Phone, Search, Filter, User, LogIn, Clock } from "lucide-react"
 import Link from "next/link"
 
 const mockOficinas = [
@@ -86,6 +86,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDistance, setSelectedDistance] = useState("")
   const [selectedRating, setSelectedRating] = useState("")
+  const [selectedSchedule, setSelectedSchedule] = useState("")
   const [showFilters, setShowFilters] = useState(false)
 
   const filteredOficinas = mockOficinas.filter((oficina) => {
@@ -98,7 +99,9 @@ export default function HomePage() {
 
     const matchesRating = !selectedRating || oficina.avaliacao >= Number.parseFloat(selectedRating)
 
-    return matchesSearch && matchesDistance && matchesRating
+    const matchesSchedule = !selectedSchedule || oficina.horario.toLowerCase().includes(selectedSchedule.toLowerCase())
+
+    return matchesSearch && matchesDistance && matchesRating && matchesSchedule
   })
 
   return (
@@ -112,37 +115,15 @@ export default function HomePage() {
       >
         <div className="container mx-auto px-4 max-w-7xl h-full">
           <div className="flex justify-between items-center h-full">
-            {/* Logo centralizada */}
-            <div className="flex-1 flex justify-center">
-              <div className="text-center">
-                <h1
-                  className="text-2xl font-bold tracking-wide"
-                  style={{
-                    color: "var(--marketplace-primary)",
-                    textShadow: "0 0 15px rgba(59, 130, 246, 0.3)",
-                    fontWeight: "800",
-                  }}
-                >
-                  REPARA
-                </h1>
-                <div className="relative -mt-1">
-                  <div className="text-sm transform rotate-45" style={{ color: "var(--marketplace-text-secondary)" }}>
-                    🔧
-                  </div>
-                  <div
-                    className="absolute top-0 left-0 text-sm transform -rotate-45"
-                    style={{ color: "var(--marketplace-text-secondary)" }}
-                  >
-                    🔧
-                  </div>
-                </div>
-                <p
-                  className="text-xs font-medium tracking-widest uppercase -mt-1"
-                  style={{ color: "var(--marketplace-text-secondary)" }}
-                >
-                  MARKETPLACE DE OFICINAS
-                </p>
-              </div>
+            <div className="flex items-center">
+              <h1
+                className="text-xl font-bold"
+                style={{
+                  color: "var(--marketplace-primary)",
+                }}
+              >
+                Marketplace de Oficinas
+              </h1>
             </div>
 
             {/* Navbar buttons */}
@@ -166,15 +147,15 @@ export default function HomePage() {
                 <Button
                   className="px-4 py-2 rounded-lg"
                   style={{
-                    backgroundColor: "#3B82F6",
+                    backgroundColor: "var(--marketplace-primary)",
                     color: "white",
                     cursor: "pointer",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#60A5FA"
+                    e.currentTarget.style.backgroundColor = "var(--marketplace-primary-hover)"
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#3B82F6"
+                    e.currentTarget.style.backgroundColor = "var(--marketplace-primary)"
                   }}
                 >
                   <User className="w-4 h-4 mr-2" />
@@ -244,7 +225,7 @@ export default function HomePage() {
         {/* Filters */}
         {showFilters && (
           <div className="p-6 rounded-lg mb-6" style={{ backgroundColor: "var(--marketplace-card)" }}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
                   Distância
@@ -285,12 +266,37 @@ export default function HomePage() {
                   <option value="4.5">★ 4.5+</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
+                  Horário de funcionamento
+                </label>
+                <select
+                  value={selectedSchedule}
+                  onChange={(e) => setSelectedSchedule(e.target.value)}
+                  className="w-full p-2 rounded-lg border-0"
+                  style={{
+                    backgroundColor: "var(--marketplace-bg)",
+                    color: "var(--marketplace-text-primary)",
+                    borderColor: "var(--marketplace-border)",
+                  }}
+                >
+                  <option value="">Qualquer horário</option>
+                  <option value="seg">Segunda-feira</option>
+                  <option value="ter">Terça-feira</option>
+                  <option value="qua">Quarta-feira</option>
+                  <option value="qui">Quinta-feira</option>
+                  <option value="sex">Sexta-feira</option>
+                  <option value="sáb">Sábado</option>
+                  <option value="dom">Domingo</option>
+                </select>
+              </div>
               <div className="flex items-end">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSelectedDistance("")
                     setSelectedRating("")
+                    setSelectedSchedule("")
                     setSearchTerm("")
                   }}
                   className="w-full"
@@ -322,6 +328,7 @@ export default function HomePage() {
               onClick={() => {
                 setSelectedDistance("")
                 setSelectedRating("")
+                setSelectedSchedule("")
                 setSearchTerm("")
               }}
               style={{
@@ -389,6 +396,13 @@ export default function HomePage() {
                           </div>
                         </div>
 
+                        <div className="flex items-center gap-1 mb-3">
+                          <Clock className="w-4 h-4" style={{ color: "var(--marketplace-primary)" }} />
+                          <span className="text-sm" style={{ color: "var(--marketplace-text-secondary)" }}>
+                            {oficina.horario}
+                          </span>
+                        </div>
+
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 fill-current" style={{ color: "#FACC15" }} />
@@ -400,7 +414,7 @@ export default function HomePage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" style={{ color: "#3B82F6" }} />
+                            <MapPin className="w-4 h-4" style={{ color: "var(--marketplace-primary)" }} />
                             <span className="text-sm" style={{ color: "#A1A1AA" }}>
                               {oficina.distancia}
                             </span>
@@ -415,15 +429,15 @@ export default function HomePage() {
                             window.open(`https://wa.me/${oficina.telefone}`, "_blank")
                           }}
                           style={{
-                            backgroundColor: "#3B82F6",
+                            backgroundColor: "#22C55E",
                             color: "white",
                             cursor: "pointer",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "#60A5FA"
+                            e.currentTarget.style.backgroundColor = "#16A34A"
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "#3B82F6"
+                            e.currentTarget.style.backgroundColor = "#22C55E"
                           }}
                         >
                           <Phone className="w-4 h-4 mr-2" />
