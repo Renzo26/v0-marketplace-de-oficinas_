@@ -149,9 +149,23 @@ export default function CadastroOficina() {
   }
 
   const handleSubmit = async () => {
-    if (!validateStep(currentStep) || !formData.aceitaTermos) return
+    console.log("[v0] ========== INICIANDO CADASTRO ==========")
+    console.log("[v0] Validando formulário...")
 
+    if (!validateStep(currentStep)) {
+      console.log("[v0] ❌ Validação falhou na etapa", currentStep)
+      console.log("[v0] Erros encontrados:", errors)
+      return
+    }
+
+    if (!formData.aceitaTermos) {
+      console.log("[v0] ❌ Termos não aceitos")
+      return
+    }
+
+    console.log("[v0] ✅ Validação passou")
     setIsSubmitting(true)
+
     try {
       const cadastroData: CadastroOficinaData = {
         razaoSocial: formData.razaoSocial,
@@ -165,14 +179,48 @@ export default function CadastroOficina() {
         senha: formData.senha,
       }
 
-      // In production, this will call the Java backend
-      await apiService.cadastrarOficina(cadastroData)
+      console.log("[v0] 📦 Dados preparados para envio:")
+      console.log("[v0] URL da API:", process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api")
+      console.log("[v0] Endpoint:", "/oficinas")
+      console.log("[v0] Método:", "POST")
+      console.log("[v0] Payload completo:", JSON.stringify(cadastroData, null, 2))
+      console.log("[v0] ========================================")
+
+      console.log("[v0] 🚀 Enviando requisição...")
+      const response = await apiService.cadastrarOficina(cadastroData)
+
+      console.log("[v0] ========== RESPOSTA RECEBIDA ==========")
+      console.log("[v0] ✅ Cadastro realizado com sucesso!")
+      console.log("[v0] Status:", response.success ? "SUCESSO" : "FALHA")
+      console.log("[v0] Resposta completa:", JSON.stringify(response, null, 2))
+
+      if (response.data) {
+        console.log("[v0] 📋 Dados da oficina cadastrada:")
+        console.log("[v0] - ID:", response.data.id)
+        console.log("[v0] - Razão Social:", response.data.razaoSocial)
+        console.log("[v0] - CNPJ:", response.data.cnpj)
+        console.log("[v0] - Email:", response.data.email)
+      }
+      console.log("[v0] ========================================")
+
       setShowSuccess(true)
     } catch (error) {
-      console.error("Erro ao cadastrar oficina:", error)
-      setErrors({ submit: "Erro ao cadastrar oficina. Tente novamente." })
+      console.log("[v0] ========== ERRO NO CADASTRO ==========")
+      console.error("[v0] ❌ Erro ao cadastrar oficina")
+      console.error("[v0] Tipo do erro:", error instanceof Error ? "Error" : typeof error)
+      console.error("[v0] Mensagem:", error instanceof Error ? error.message : String(error))
+      console.error("[v0] Stack trace:", error instanceof Error ? error.stack : "N/A")
+      console.log("[v0] ========================================")
+
+      setErrors({
+        submit:
+          error instanceof Error
+            ? `Erro ao cadastrar: ${error.message}`
+            : "Erro ao cadastrar oficina. Verifique se o backend está rodando.",
+      })
     } finally {
       setIsSubmitting(false)
+      console.log("[v0] Processo de cadastro finalizado")
     }
   }
 
@@ -371,7 +419,7 @@ export default function CadastroOficina() {
                       value={formData.login}
                       onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
                       placeholder="Seu login de acesso"
-                      className="border-0"
+                      className="border-0 pr-10"
                       style={{
                         backgroundColor: "var(--marketplace-card)",
                         color: "var(--marketplace-text-primary)",

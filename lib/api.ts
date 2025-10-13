@@ -58,9 +58,37 @@ interface LoginData {
 class ApiService {
   private baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
 
+  constructor() {
+    console.log("[v0] 🔧 ApiService inicializado")
+    console.log("[v0] Base URL configurada:", this.baseUrl)
+    console.log("[v0] Variável de ambiente NEXT_PUBLIC_API_URL:", process.env.NEXT_PUBLIC_API_URL || "não configurada")
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+    const fullUrl = `${this.baseUrl}${endpoint}`
+
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      console.log("[v0] ========== REQUISIÇÃO HTTP ==========")
+      console.log("[v0] 🌐 URL completa:", fullUrl)
+      console.log("[v0] 📝 Método:", options.method || "GET")
+      console.log(
+        "[v0] 📋 Headers:",
+        JSON.stringify(
+          {
+            "Content-Type": "application/json",
+            ...options.headers,
+          },
+          null,
+          2,
+        ),
+      )
+
+      if (options.body) {
+        console.log("[v0] 📦 Body:", options.body)
+      }
+
+      console.log("[v0] 🚀 Enviando requisição...")
+      const response = await fetch(fullUrl, {
         headers: {
           "Content-Type": "application/json",
           ...options.headers,
@@ -68,15 +96,48 @@ class ApiService {
         ...options,
       })
 
-      const data = await response.json()
+      console.log("[v0] 📨 Resposta recebida")
+      console.log("[v0] Status:", response.status, response.statusText)
+      console.log("[v0] Headers da resposta:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2))
 
-      if (!response.ok) {
-        throw new Error(data.message || "Erro na requisição")
+      const contentType = response.headers.get("content-type")
+      let data: any
+
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json()
+        console.log("[v0] 📄 Dados JSON recebidos:", JSON.stringify(data, null, 2))
+      } else {
+        const text = await response.text()
+        console.log("[v0] 📄 Resposta em texto:", text)
+        data = { message: text }
       }
 
-      return data
+      if (!response.ok) {
+        console.error("[v0] ❌ Erro HTTP:", response.status)
+        console.error("[v0] Mensagem de erro:", data.message || "Erro na requisição")
+        throw new Error(data.message || `Erro HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      console.log("[v0] ✅ Requisição bem-sucedida")
+      console.log("[v0] ========================================")
+
+      return {
+        data: data.data || data,
+        success: true,
+        message: data.message,
+      }
     } catch (error) {
-      console.error("API Error:", error)
+      console.log("[v0] ========== ERRO NA REQUISIÇÃO ==========")
+      console.error("[v0] ❌ Falha na requisição")
+      console.error("[v0] URL:", fullUrl)
+      console.error("[v0] Erro:", error)
+
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        console.error("[v0] 🔌 Erro de conexão - Backend pode estar offline")
+        console.error("[v0] Verifique se o backend Java está rodando em:", this.baseUrl)
+      }
+
+      console.log("[v0] ========================================")
       throw error
     }
   }
@@ -102,6 +163,17 @@ class ApiService {
   }
 
   async cadastrarOficina(data: CadastroOficinaData): Promise<ApiResponse<OficinaData>> {
+    console.log("[v0] 📝 Preparando cadastro de oficina")
+    console.log("[v0] Dados recebidos:")
+    console.log("[v0] - Razão Social:", data.razaoSocial)
+    console.log("[v0] - CNPJ:", data.cnpj)
+    console.log("[v0] - Email:", data.email)
+    console.log("[v0] - Telefone:", data.telefone)
+    console.log("[v0] - Endereço:", data.endereco)
+    console.log("[v0] - Login:", data.login)
+    console.log("[v0] - Serviços:", data.servicos.length, "selecionados")
+    console.log("[v0] - Horários configurados:", Object.keys(data.horarioFuncionamento).length, "dias")
+
     return this.request<OficinaData>("/oficinas", {
       method: "POST",
       body: JSON.stringify(data),
