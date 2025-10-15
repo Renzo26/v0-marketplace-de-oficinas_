@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, ArrowRight, Check, Upload, MapPin, Phone, Star, Eye, EyeOff } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Upload, MapPin, Phone, Star, Eye, EyeOff, X } from "lucide-react"
 import Link from "next/link"
 import { validateCNPJ, formatCNPJ } from "@/lib/validators"
 import { apiService, type CadastroOficinaData, type HorarioFuncionamento } from "@/lib/api"
@@ -75,12 +77,25 @@ export default function CadastroOficina() {
     servicosSelecionados: [] as string[],
     outrosServicos: "",
     aceitaTermos: false,
+    fotos: [] as File[],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (formData.cnpj) {
+      const cnpjNumeros = formData.cnpj.replace(/\D/g, "")
+      if (cnpjNumeros.length === 14) {
+        setFormData((prev) => ({ ...prev, login: cnpjNumeros }))
+      }
+    }
+  }, [formData.cnpj])
 
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {}
@@ -98,6 +113,7 @@ export default function CadastroOficina() {
       if (!formData.login.trim()) newErrors.login = "Login é obrigatório"
       if (!formData.senha.trim()) newErrors.senha = "Senha é obrigatória"
       if (formData.senha !== formData.confirmarSenha) newErrors.confirmarSenha = "Senhas não coincidem"
+      if (formData.fotos.length === 0) newErrors.fotos = "Selecione pelo menos uma foto"
     }
 
     if (step === 2) {
@@ -177,6 +193,7 @@ export default function CadastroOficina() {
         horarioFuncionamento: formData.horarioFuncionamento,
         login: formData.login,
         senha: formData.senha,
+        fotos: formData.fotos,
       }
 
       console.log("[v0] 📦 Dados preparados para envio:")
@@ -222,6 +239,66 @@ export default function CadastroOficina() {
       setIsSubmitting(false)
       console.log("[v0] Processo de cadastro finalizado")
     }
+  }
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return
+
+    const validFiles: File[] = []
+    const newPreviews: string[] = []
+    let errorMessage = ""
+
+    Array.from(files).forEach((file) => {
+      if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
+        errorMessage = "Apenas arquivos JPG e PNG são permitidos"
+        return
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        errorMessage = "Cada foto deve ter no máximo 5MB"
+        return
+      }
+
+      validFiles.push(file)
+      newPreviews.push(URL.createObjectURL(file))
+    })
+
+    if (errorMessage) {
+      setErrors((prev) => ({ ...prev, fotos: errorMessage }))
+      return
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      fotos: [...prev.fotos, ...validFiles],
+    }))
+    setImagePreviews((prev) => [...prev, ...newPreviews])
+    setErrors((prev) => ({ ...prev, fotos: "" }))
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    handleFileSelect(e.dataTransfer.files)
+  }
+
+  const handleRemoveImage = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      fotos: prev.fotos.filter((_, i) => i !== index),
+    }))
+    URL.revokeObjectURL(imagePreviews[index])
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index))
   }
 
   if (showSuccess) {
@@ -417,15 +494,18 @@ export default function CadastroOficina() {
                     </label>
                     <Input
                       value={formData.login}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, login: e.target.value }))}
-                      placeholder="Seu login de acesso"
-                      className="border-0 pr-10"
+                      readOnly
+                      placeholder="Preenchido automaticamente com o CNPJ"
+                      className="border-0 pr-10 cursor-not-allowed opacity-75"
                       style={{
                         backgroundColor: "var(--marketplace-card)",
                         color: "var(--marketplace-text-primary)",
                         borderColor: errors.login ? "var(--marketplace-error)" : "transparent",
                       }}
                     />
+                    <p className="text-xs mt-1" style={{ color: "var(--marketplace-text-secondary)" }}>
+                      O login será o CNPJ sem formatação
+                    </p>
                     {errors.login && (
                       <p className="text-sm mt-1" style={{ color: "var(--marketplace-error)" }}>
                         {errors.login}
@@ -631,30 +711,32 @@ export default function CadastroOficina() {
                       </div>
                       {formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].ativo && (
                         <div className="flex items-center gap-2">
-                          <Input
+                          <input
                             type="time"
                             value={formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].inicio}
                             onChange={(e) =>
                               handleHorarioChange(dia.key as keyof HorarioFuncionamento, "inicio", e.target.value)
                             }
-                            className="w-24 border-0"
+                            className="w-28 px-3 py-2 rounded-md border-0 text-sm"
                             style={{
                               backgroundColor: "var(--marketplace-card)",
                               color: "var(--marketplace-text-primary)",
                             }}
+                            step="900"
                           />
                           <span style={{ color: "var(--marketplace-text-secondary)" }}>às</span>
-                          <Input
+                          <input
                             type="time"
                             value={formData.horarioFuncionamento[dia.key as keyof HorarioFuncionamento].fim}
                             onChange={(e) =>
                               handleHorarioChange(dia.key as keyof HorarioFuncionamento, "fim", e.target.value)
                             }
-                            className="w-24 border-0"
+                            className="w-28 px-3 py-2 rounded-md border-0 text-sm"
                             style={{
                               backgroundColor: "var(--marketplace-card)",
                               color: "var(--marketplace-text-primary)",
                             }}
+                            step="900"
                           />
                         </div>
                       )}
@@ -664,12 +746,31 @@ export default function CadastroOficina() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: "var(--marketplace-text-primary)" }}>
+                <label className="block text-sm font-medium mb-4" style={{ color: "var(--marketplace-text-primary)" }}>
                   Fotos da Oficina
                 </label>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png"
+                  multiple
+                  onChange={(e) => handleFileSelect(e.target.files)}
+                  className="hidden"
+                />
+
                 <div
-                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:opacity-80"
-                  style={{ borderColor: "var(--marketplace-border)" }}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                    isDragging ? "border-blue-500 bg-blue-50/10" : ""
+                  }`}
+                  style={{
+                    borderColor: isDragging ? "var(--marketplace-primary)" : "var(--marketplace-border)",
+                    backgroundColor: isDragging ? "var(--marketplace-bg)" : "transparent",
+                  }}
                 >
                   <Upload className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--marketplace-text-secondary)" }} />
                   <p style={{ color: "var(--marketplace-text-secondary)" }}>
@@ -679,6 +780,46 @@ export default function CadastroOficina() {
                     Mínimo 1 foto (JPG, PNG até 5MB)
                   </p>
                 </div>
+
+                {errors.fotos && (
+                  <p className="text-sm mt-2" style={{ color: "var(--marketplace-error)" }}>
+                    {errors.fotos}
+                  </p>
+                )}
+
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={preview || "/placeholder.svg"}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemoveImage(index)
+                          }}
+                          className="absolute top-2 right-2 p-1 rounded-full bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <div className="absolute bottom-2 left-2 px-2 py-1 rounded text-xs bg-black/50 text-white">
+                          {(formData.fotos[index].size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {formData.fotos.length > 0 && (
+                  <p className="text-sm mt-2" style={{ color: "var(--marketplace-success)" }}>
+                    ✓ {formData.fotos.length} foto{formData.fotos.length > 1 ? "s" : ""} selecionada
+                    {formData.fotos.length > 1 ? "s" : ""}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -761,7 +902,6 @@ export default function CadastroOficina() {
                 <p style={{ color: "var(--marketplace-text-secondary)" }}>Veja como sua oficina aparecerá nas buscas</p>
               </CardHeader>
               <CardContent>
-                {/* Preview Card */}
                 <div
                   className="p-6 rounded-lg border-2"
                   style={{
@@ -805,7 +945,6 @@ export default function CadastroOficina() {
               </CardContent>
             </Card>
 
-            {/* Terms */}
             <Card className="border-0" style={{ backgroundColor: "var(--marketplace-card)" }}>
               <CardContent className="pt-6">
                 <div className="flex items-start space-x-2">
